@@ -5,6 +5,7 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using Photon.Pun;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace Arm
 {
@@ -17,6 +18,8 @@ namespace Arm
 		[SerializeField] private GameController.Role _owner = GameController.Role.None;
 		[SerializeField] private ArmSound _armSound = null;
 		[SerializeField] private Bounds boundingBox;
+        [SerializeField] private ParticleSystem[] _particleSystems = null;
+
 		public float ControlSpeed => controlSpeed;
 		public Transform Head => armIKSolver.transform;
 		public Transform ArmTarget { get; private set; } = null;
@@ -30,6 +33,10 @@ namespace Arm
 		private Vector3 translation = new Vector3();
 		private bool initialialized = false;
         private Matrix4x4 aligment = new Matrix4x4(new Vector4(1,0,0,0),new Vector4(0,1,0,0), new Vector4(0,0,1,0), new Vector4(0,0,0,0));
+
+        private bool _inversedX = false;
+        private bool _inversedZ = false;
+        private bool _inversed => _inversedX || _inversedZ;
 
 		private void Awake()
 		{
@@ -126,11 +133,47 @@ namespace Arm
         public void InverseX()
         {
             aligment.SetRow(0, aligment.GetRow(0) * -1);
+            _inversedX = !_inversedX;
+            foreach (ParticleSystem particleSystem in _particleSystems)
+            {
+                if (_inversed)
+                {
+                    if (!particleSystem.isPlaying)
+                    {
+                        particleSystem.Play();
+                    }
+                }
+                else
+                {
+                    if (!particleSystem.isStopped)
+                    {
+                        particleSystem.Stop();
+                    }
+                }
+            }
         }
 
         public void InverseZ()
         {
             aligment.SetRow(2, aligment.GetRow(2) * -1);
+            _inversedZ = !_inversedZ;
+            foreach (ParticleSystem particleSystem in _particleSystems)
+            {
+                if (_inversed)
+                {
+                    if(!particleSystem.isPlaying)
+                    {
+                        particleSystem.Play();
+                    }
+                }
+                else
+                {
+                    if (!particleSystem.isStopped)
+                    {
+                        particleSystem.Stop();
+                    }
+                }
+            }
         }
 
 		public void Translate(Vector3 translate)

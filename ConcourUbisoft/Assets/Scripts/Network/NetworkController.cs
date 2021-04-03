@@ -8,6 +8,8 @@ using System.Linq;
 using UnityEngine.UI;
 using UnityEngine.Events;
 using System;
+using Photon.Voice.PUN;
+using Photon.Voice.Unity.UtilityScripts;
 using UnityEditor;
 
 public class NetworkController : MonoBehaviourPunCallbacks
@@ -91,6 +93,8 @@ public class NetworkController : MonoBehaviourPunCallbacks
     {
         Debug.Log($"Joined Room: {PhotonNetwork.CurrentRoom.Name}");
         GameObject playerNetwork = PhotonNetwork.Instantiate("Player", new Vector3(0, 0, 0), Quaternion.identity, 0);
+        playerNetwork.GetComponent<ConnectAndJoin>().RoomName = PhotonNetwork.CurrentRoom.Name;
+        playerNetwork.GetComponent<ConnectAndJoin>().ConnectNow();
         if (QuickSetup)
         {
             GameController.Role role = PhotonNetwork.IsMasterClient ? GameController.Role.SecurityGuard : GameController.Role.Technician;

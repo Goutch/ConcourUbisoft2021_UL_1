@@ -34,7 +34,7 @@ Transform:
   m_GameObject: {fileID: 2362435244797905396}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 15, y: 15, z: 15}
+  m_LocalScale: {x: 25, y: 25, z: 25}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
@@ -66,7 +66,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: -1360991219368177298, guid: 81710624946b21b4caf1a5b3b62ed078, type: 3}
+  - {fileID: 2100000, guid: 18eb4b70676d4d446937ce5aa039ed50, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -144,6 +144,14 @@ MonoBehaviour:
   type: 3
   volumeMultiplier: 0.3
   magnetCollisionSound: {fileID: 8300000, guid: d0cbf4c91bdfaf9449032b32781825e8, type: 3}
+  onHitSound: {fileID: 8300000, guid: 260993b617ac50b4881e97a77fa0d733, type: 3}
+  _emissionVisibleBy: 2
+  _isRightColor: 0
+  _intensity: 0
+  _directionIntensity: 1
+  _intensityGainSpeed: 2
+  _intensityUpperBound: 2
+  _intensityBottomBound: 0
 --- !u!114 &5905518934942538558
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5048,7 +5056,7 @@ AudioSource:
   m_GameObject: {fileID: 2362435244797905396}
   m_Enabled: 1
   serializedVersion: 4
-  OutputAudioMixerGroup: {fileID: 0}
+  OutputAudioMixerGroup: {fileID: 24300002, guid: 496b9a23679f0bf448e2a6493228c304, type: 2}
   m_audioClip: {fileID: 0}
   m_PlayOnAwake: 1
   m_Volume: 1
@@ -5155,7 +5163,6 @@ MonoBehaviour:
   OwnershipTransfer: 0
   ObservedComponents:
   - {fileID: 843007250116299105}
-  - {fileID: 0}
   viewIdField: 0
   InstantiationId: 0
   isRuntimeInstantiated: 0

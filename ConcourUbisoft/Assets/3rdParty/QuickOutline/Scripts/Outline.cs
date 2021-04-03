@@ -88,7 +88,10 @@ public class Outline : MonoBehaviour
 	private void Awake()
 	{
 		// Cache renderers
-		renderers = GetComponentsInChildren<Renderer>();
+		renderers = GetComponentsInChildren<Renderer>().Where(x => {
+            MeshFilter mesh;
+            return x.TryGetComponent(out mesh);
+            }).ToArray();
 		outlineRenderers = new GameObject[renderers.Length];
 		// Instantiate outline materials
 		outlineMaskMaterial = Instantiate(Resources.Load<Material>(@"Materials/OutlineMask"));
@@ -218,7 +221,7 @@ public class Outline : MonoBehaviour
 			var index = bakeKeys.IndexOf(meshFilter.sharedMesh);
 			var smoothNormals = (index >= 0) ? bakeValues[index].data : SmoothNormals(meshFilter.sharedMesh);
 
-			// Store smooth normals in UV3
+            // Store smooth normals in UV3
 			meshFilter.sharedMesh.SetUVs(3, smoothNormals);
 		}
 

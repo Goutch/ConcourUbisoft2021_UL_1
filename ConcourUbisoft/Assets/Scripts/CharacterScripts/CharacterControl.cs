@@ -8,7 +8,7 @@ using UnityEngine;
 
 public class CharacterControl : MonoBehaviour, IPunObservable
 {
-    [SerializeField] private float playerMovementSpeed = 1f;
+    [SerializeField] public float playerMovementSpeed = 1f;
     [SerializeField] private GameController.Role _owner = GameController.Role.SecurityGuard;
     [SerializeField] private Animator _animator = null;
     [SerializeField] private new Camera _camera = null;
@@ -29,9 +29,13 @@ public class CharacterControl : MonoBehaviour, IPunObservable
     private Vector3 newPosition = new Vector3();
     private Quaternion newQuartenion = new Quaternion();
     private bool _isMoving = false;
+    private float _horizontalMovement = 0.0f;
+    private float _verticalMovement = 0.0f;
+    private GameController _gameController = null;
 
     private void Awake()
     {
+        _gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
         newPosition = transform.position;
         _networkController = GameObject.FindGameObjectWithTag("NetworkController").GetComponent<NetworkController>();
         _photonView = GetComponent<PhotonView>();
@@ -63,20 +67,36 @@ public class CharacterControl : MonoBehaviour, IPunObservable
             controllerHorizontal = Input.GetAxis("LeftJoystickHorizontal");
             controllerVertical = Input.GetAxis("LeftJoystickVertical");
 
-            Vector3 controllerInput = (_camera.transform.right* controllerHorizontal + Vector3.ProjectOnPlane(_camera.transform.forward , Vector3.up).normalized * controllerVertical) * (playerMovementSpeed);
-            Vector3 keyboardInput = (_camera.transform.right * keyboardHorizontal + Vector3.ProjectOnPlane(_camera.transform.forward, Vector3.up).normalized * keyBoardVertical) * (playerMovementSpeed);
-
-            inputVector = Vector3.ClampMagnitude(controllerInput + keyboardInput, playerMovementSpeed);
-
-            if (inputVector.magnitude > float.Epsilon)
+            if(_gameController.IsGameMenuOpen)
             {
-                _mesh.rotation = Quaternion.LookRotation(inputVector, Vector3.up);
+                _horizontalMovement = 0;
+                _verticalMovement = 0;
+                inputVector = Vector3.zero;
+            }
+            else
+            {
+                Vector3 controllerInput = (_camera.transform.right * controllerHorizontal + Vector3.ProjectOnPlane(_camera.transform.forward, Vector3.up).normalized * controllerVertical);
+                Vector3 keyboardInput = (_camera.transform.right * keyboardHorizontal + Vector3.ProjectOnPlane(_camera.transform.forward, Vector3.up).normalized * keyBoardVertical);
+
+                _horizontalMovement = Mathf.Clamp(Input.GetAxis("Horizontal") + Input.GetAxis("LeftJoystickHorizontal"), -1, 1);
+                _verticalMovement = Mathf.Clamp(Input.GetAxis("Vertical") + Input.GetAxis("LeftJoystickVertical"), -1, 1);
+
+                inputVector = (controllerInput + keyboardInput).normalized * (playerMovementSpeed);
+
+                if(_horizontalMovement == 0 && _verticalMovement == 0)
+                {
+                    inputVector = Vector3.zero;
+                }
+
+                _mesh.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(_camera.transform.forward, Vector3.up).normalized, Vector3.up);
             }
 
             _isMoving = inputVector != Vector3.zero;
         }
 
         _animator.SetBool("IsMoving",_isMoving);
+        _animator.SetFloat("VerticalMovement", _verticalMovement);
+        _animator.SetFloat("HorizontalMovement", _horizontalMovement);
     }
 
     private void FixedUpdate()
@@ -97,6 +117,8 @@ public class CharacterControl : MonoBehaviour, IPunObservable
         if (stream.IsWriting)
         {
             stream.SendNext(_isMoving);
+            stream.SendNext(_verticalMovement);
+            stream.SendNext(_horizontalMovement);
             stream.SendNext(transform.position.x);
             stream.SendNext(transform.position.y);
             stream.SendNext(transform.position.z);
@@ -108,6 +130,8 @@ public class CharacterControl : MonoBehaviour, IPunObservable
         else
         {
             _isMoving = (bool)stream.ReceiveNext();
+            _verticalMovement = (float)stream.ReceiveNext();
+            _horizontalMovement = (float)stream.ReceiveNext();
             Vector3 newPostion = new Vector3((float)stream.ReceiveNext(), (float)stream.ReceiveNext(), (float)stream.ReceiveNext());
             if (Vector3.Distance(newPostion, transform.position) > 3)
             {
