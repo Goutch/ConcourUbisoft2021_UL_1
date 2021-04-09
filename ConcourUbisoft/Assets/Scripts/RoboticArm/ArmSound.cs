@@ -8,21 +8,25 @@ using UnityEngine;
 public class ArmSound : MonoBehaviour, IPunObservable
 {
     [SerializeField] private ArmController armController;
-	private AudioSource audioSource;
+    [SerializeField] private AudioSource guardAudio;
+    [SerializeField] private AudioSource techAudio;
 
     public float Volume { get; set; } = 0.0f;
+    public float StartTime { get; set; } = 0.0f;
     private float smoothSound;
     void Start()
 	{
-        audioSource = GetComponent<AudioSource>();
-		audioSource.loop = true;
-        audioSource.Play();
+        guardAudio.loop = true;
+        guardAudio.Play();
+        techAudio.loop = true;
+        techAudio.Play();
 
     }
 
     private void Update()
     {
-        audioSource.volume = Volume*0.3f;
+        guardAudio.volume = Mathf.Lerp(0,1, Volume)*0.3f;
+        techAudio.volume = Mathf.Lerp(0,1, Volume)*0.3f;
     }
 
     public void OnPhotonSerializeView(PhotonStream stream, PhotonMessageInfo info)

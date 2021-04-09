@@ -1,3 +1,4 @@
+using System;
 using Photon.Pun;
 using System.Collections;
 using System.Collections.Generic;
@@ -18,83 +19,133 @@ public class DoorController : MonoBehaviour
     }
 
     [SerializeField] public int Id = 0;
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip audioClip;
     private List<Direction> _inputSequences;
     private List<Direction> _currentSequences = new List<Direction>();
-    private Animation _animation = null;
+    private Animation _animation;
+    [SerializeField] private AnimationClip _openAnimation;
+    [SerializeField] private AnimationClip _closeAnimation;
     private PhotonView _photonView = null;
+    private GameController _gameController;
 
     public UnityEvent OnError;
     public UnityEvent OnSuccess;
     public UnityEvent OnEntry;
+    public UnityEvent OnClose;
 
     public bool IsUnlock { get; private set; } = false;
+    [SerializeField] private bool isActive = false;
 
     private void Awake()
     {
+        _gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
+        if (!_gameController.ForceOrder)
+            isActive = true;
+        
         _animation = GetComponent<Animation>();
+        _animation.clip = _openAnimation;
+        _animation.AddClip(_openAnimation, "open");
+        _animation.AddClip(_closeAnimation, "close");
         _photonView = GetComponent<PhotonView>();
         _inputSequences = GetComponent<randomCodePicker>().GetSequence();
     }
 
     public void TriggerLeft()
     {
-        _photonView.RPC("TiggerLeftNetwork", RpcTarget.AllBuffered);
+        if(isActive)
+            _photonView.RPC("TiggerLeftNetwork", RpcTarget.AllBuffered);
     }
 
     public void TriggerRight()
     {
-        _photonView.RPC("TriggerRightNetwork", RpcTarget.AllBuffered);
+        if(isActive)
+            _photonView.RPC("TriggerRightNetwork", RpcTarget.AllBuffered);
     }
 
     public void TriggerBottom()
     {
-        _photonView.RPC("TriggerBottomNetwork", RpcTarget.AllBuffered);
+        if(isActive)
+            _photonView.RPC("TriggerBottomNetwork", RpcTarget.AllBuffered);
     }
 
     public void TriggerUp()
     {
-        _photonView.RPC("TriggerUpNetwork", RpcTarget.AllBuffered);
+        if(isActive)
+            _photonView.RPC("TriggerUpNetwork", RpcTarget.AllBuffered);
     }
 
     public void CheckSequence()
     {
-        _photonView.RPC("CheckSequenceNetwork", RpcTarget.AllBuffered);
+        if(isActive)
+            _photonView.RPC("CheckSequenceNetwork", RpcTarget.AllBuffered);
     }
 
     public void Unlock()
     {
-        Debug.Log("Play");
         IsUnlock = true;
-        _animation.Play();
+        _animation.clip = _openAnimation;
+        _animation.Play("open");
+        audioSource.clip = audioClip;
+        audioSource.Play();
+        SetInnactive();
         OnSuccess?.Invoke();
+    }
+
+    public void CloseDoor()
+    {
+        _photonView.RPC("CloseDoorNetwork", RpcTarget.AllBuffered);
+    }
+
+    public void SetActive()
+    {
+        isActive = true;
+    }
+
+    public void SetInnactive()
+    {
+        isActive = false;
     }
 
     [PunRPC]
     public void TiggerLeftNetwork()
     {
-        _currentSequences.Add(Direction.Left);
-        OnEntry.Invoke();
+        if (_currentSequences.Count < _inputSequences.Count)
+        {
+            _currentSequences.Add(Direction.Left);
+            OnEntry.Invoke();
+        }
     }
 
     [PunRPC]
     public void TriggerRightNetwork()
     {
-        _currentSequences.Add(Direction.Right);
-        OnEntry.Invoke();
+        if (_currentSequences.Count < _inputSequences.Count)
+        {
+            _currentSequences.Add(Direction.Right);
+            OnEntry.Invoke();
+        }
     }
 
     [PunRPC]
     public void TriggerBottomNetwork()
     {
-        _currentSequences.Add(Direction.Bottom);
-        OnEntry.Invoke();
+        if (_currentSequences.Count < _inputSequences.Count)
+        {
+            _currentSequences.Add(Direction.Bottom);
+            OnEntry.Invoke(); 
+        }
+        
     }
 
     [PunRPC]
     public void TriggerUpNetwork()
     {
-        _currentSequences.Add(Direction.Up);
-        OnEntry.Invoke();
+        if (_currentSequences.Count < _inputSequences.Count)
+        {
+            _currentSequences.Add(Direction.Up);
+            OnEntry.Invoke();
+        }
     }
 
     [PunRPC]
@@ -131,5 +182,22 @@ public class DoorController : MonoBehaviour
         }
 
         _currentSequences.Clear();
+    }
+
+    [PunRPC]
+
+    public void CloseDoorNetwork()
+    {
+        if (IsUnlock)
+        {
+            SetActive();
+            IsUnlock = false;
+            _currentSequences.Clear();
+            _animation.clip = _closeAnimation;
+            _animation.Play("close");
+            audioSource.clip = audioClip;
+            audioSource.Play();
+            OnClose.Invoke();
+        }
     }
 }

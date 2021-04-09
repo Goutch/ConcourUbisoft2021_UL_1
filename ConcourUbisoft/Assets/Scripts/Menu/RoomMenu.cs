@@ -2,8 +2,10 @@ using Photon.Voice.PUN;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Inputs;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public class RoomMenu : MonoBehaviour
@@ -12,10 +14,10 @@ public class RoomMenu : MonoBehaviour
     [SerializeField] private GameObject _roomMenuElementPrefab = null;
     [SerializeField] private GameObject _waitingForAnotherPlayer = null;
     [SerializeField] private GameObject _startButton = null;
+    [SerializeField] private Toggle _colorBlindToggle = null;
     [SerializeField] private Text _errorText = null;
     [SerializeField] private GameObject _speaking = null;
     [SerializeField] private GameObject _lobbyPanelCreateButton;
-    [SerializeField] private GameObject _lobbyPanelJoinButton;
     [SerializeField] private GameObject _lobbyPanelRoomNameInputField;
     [SerializeField] private GameObject _lobbyPanelBackButton;
     [SerializeField] private GameObject _lobbyListHeader;
@@ -25,12 +27,12 @@ public class RoomMenu : MonoBehaviour
     private SoundController _menuSoundController = null;
 
     #region UI Action
+
     public void LeaveRoom()
     {
         _menuSoundController.PlayButtonSound();
         _networkController.LeaveRoom();
         Debug.Log("Try to leave room");
-        _lobbyPanelJoinButton.SetActive(true);
         _lobbyPanelCreateButton.SetActive(true);
         _lobbyPanelRoomNameInputField.SetActive(true);
         _lobbyPanelBackButton.SetActive(true);
@@ -38,24 +40,29 @@ public class RoomMenu : MonoBehaviour
     }
     public void StartGame()
     {
+        IEnumerable<PlayerNetwork> playerNetworks = GameObject.FindGameObjectsWithTag("PlayerNetwork").Select(x => x.GetComponent<PlayerNetwork>());
+        
+        if (_gameController.ForceTwoPlayers)
+        {
+            if (playerNetworks.Count() != 2)
+            {
+                _errorText.text = "You must have two players to proceed.";
+                return;
+            }
+            
+            IEnumerable<PlayerNetwork> playerNetworksDistinctRole = playerNetworks.GroupBy(x => x.PlayerRole).Select(x => x.First());
+
+            if (playerNetworksDistinctRole.Count() != playerNetworks.Count())
+            {
+                _errorText.text = "You cannot have players with the same role.";
+                return;
+            } 
+        }
+
+        EventSystem.current.SetSelectedGameObject(null);
         _menuSoundController.PlayButtonSound();
-        IEnumerable<PlayerNetwork> playerNetworks = GameObject.FindGameObjectsWithTag("Player").Select(x => x.GetComponent<PlayerNetwork>());
-
-        //if (playerNetworks.Count() != 2)
-        //{
-        //    errorText.text = "You must have two players to proceed.";
-        //    return;
-        //}
-
-        //IEnumerable<PlayerNetwork> playerNetworksDistinctRole = playerNetworks.GroupBy(x => x.PlayerRole).Select(x => x.First());
-        //if (playerNetworksDistinctRole.Count() != playerNetworks.Count())
-        //{
-        //    errorText.text = "You cannot have players with the same role.";
-        //    return;
-        //}
-
         _errorText.text = "";
-        _gameController.StartGame(_networkController.GetLocalRole());
+        _gameController.InitiateStartGame(_networkController.GetLocalRole(), _colorBlindToggle.isOn);
     }
     #endregion
     #region Unity Callbacks
@@ -82,6 +89,7 @@ public class RoomMenu : MonoBehaviour
     private void Update()
     {
         _startButton.SetActive(_networkController.IsMasterClient());
+        _colorBlindToggle.gameObject.SetActive(_networkController.IsMasterClient());
     }
     #endregion
     #region Event Callbacks
@@ -109,7 +117,7 @@ public class RoomMenu : MonoBehaviour
         {
             GameObject roomElement = Instantiate(_roomMenuElementPrefab, _content.transform);
             roomElement.GetComponent<RoomElementController>().PlayerNetwork = playerNetwork;
-            roomElement.transform.Find("KickButton").GetComponent<Button>().onClick.AddListener(new UnityAction(() => { _menuSoundController.PlayButtonSound(); _networkController.KickPlayer(playerNetwork.Id); }));
+            roomElement.transform.Find("KickButton").GetComponent<Button>().onClick.AddListener(new UnityAction(() => { _menuSoundController.PlayButtonSound(); OnKickClicked(); _networkController.KickPlayer(playerNetwork.Id); }));
         }
 
         if (_networkController.GetNumberOfPlayer() != 2)
@@ -117,6 +125,15 @@ public class RoomMenu : MonoBehaviour
             Instantiate(_waitingForAnotherPlayer, _content.transform);
         }
     }
+
+    private void OnKickClicked()
+    {
+        if (InputManager.GetController() != Controller.Other)
+        {
+            EventSystem.current.SetSelectedGameObject(_startButton);
+        }
+    }
+
     private void OnJoinedRoomEvent()
     {
         _errorText.text = "";

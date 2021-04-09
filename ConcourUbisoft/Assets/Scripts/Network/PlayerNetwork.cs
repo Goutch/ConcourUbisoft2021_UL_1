@@ -4,21 +4,27 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Arm;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Rendering;
+using UnityEngine.UI;
 
 public class PlayerNetwork : MonoBehaviourPun, IPunObservable
 {
     [SerializeField] private GameController.Role _playerRole;
 
-    public GameController.Role PlayerRole { get => _playerRole; set => _playerRole = value; }
+    public GameController.Role PlayerRole { get => _playerRole; set
+    {
+        _playerRole = value;
+    } }
     public string Name { set; get; }
     public string Id { get { return _photonView.Owner.UserId; } }
 
     private PhotonView _photonView = null;
     private NetworkController _networkController = null;
     private GameController _gameController = null;
-
+    
     #region Unity Callbacks
 
     private void Awake()
@@ -85,29 +91,51 @@ public class PlayerNetwork : MonoBehaviourPun, IPunObservable
         return _photonView.IsMine;
     }
 
+    public GameController.Role GetRole()
+    {
+        return _playerRole;
+    }
+
     #endregion
     #region RPC Functions
 
-    [PunRPC]
-    private void StartGame()
+    public void StartGameNetwork()
     {
-        if (!(_gameController.IsGameLoading || _gameController.IsGameStart))
+        _photonView.RPC("StartGame", RpcTarget.All, new object[] { _gameController.ColorBlindMode, _gameController.Seed } as object);
+    }
+
+    [PunRPC]
+    private void StartGame(object[] parameters)
+    {
+        if(PhotonNetwork.IsMasterClient)
         {
-            _gameController.StartGame(_networkController.GetLocalRole());
+            _gameController.StartGame(_networkController.GetLocalRole(), (bool)parameters[0], (int)parameters[1]);
+        }
+        else
+        {
+            //_gameController.StartGame(_networkController.GetLocalRole(), colorBlindMode);
+            StartCoroutine(WaitBeforeStart((bool)parameters[0], (int)parameters[1]));
         }
     }
+
+    private IEnumerator WaitBeforeStart(bool colorBlindMode, int seed)
+    {
+        yield return new WaitForSeconds(2);
+        _gameController.StartGame(_networkController.GetLocalRole(), colorBlindMode, seed);
+    }
+
 
     #endregion
     #region Private Functions
 
     private void OnLoadGameEvent()
     {
-        _photonView.RPC("StartGame", RpcTarget.Others);
+
     }
 
     private void OnFinishLoadGameEvent()
     {
-        
+
     }
 
     private void OnFinishGameEvent()

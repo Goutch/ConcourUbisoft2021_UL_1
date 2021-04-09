@@ -17,6 +17,10 @@ TagManager:
   - MovingControllable
   - InputManager
   - DialogSystem
+  - ColorBlind
+  - EndZoneCollider
+  - EndMenu
+  - EventSystem
   layers:
   - Default
   - TransparentFX

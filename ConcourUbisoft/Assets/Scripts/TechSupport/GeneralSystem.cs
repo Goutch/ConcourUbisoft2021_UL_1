@@ -41,7 +41,6 @@ namespace TechSupport
         [Header("Surveillance System")]
         [SerializeField] private SurveillanceMode mode = SurveillanceMode.Grid; // Default mode : grid
         [SerializeField] private List<OrderedItems> cameras;
-        [SerializeField] [NotNull] public GameObject tabulationIndicationButton;
         
         [Header("Button to Select camera")]
         [SerializeField] private Sprite outlineSprite;
@@ -52,6 +51,7 @@ namespace TechSupport
         private Inputs.Controller _currentController;
         private EventSystem _eventSystem;
         private InputManager _inputManager;
+        private bool _gridIsOpened;
 
         #region Callbacks
 
@@ -89,6 +89,7 @@ namespace TechSupport
             _gridSystem.Init(cameras.Count());
             _fullScreenSystem.SetTarget(cameras.First().items);
             GridInterface();
+            _gridIsOpened = false;
             _informationsSystem.Init();
             SystemSwitch(mode);
         }
@@ -98,22 +99,16 @@ namespace TechSupport
             _currentController = InputManager.GetController();
         }
 
-        private void Update()
-        {
-            if (Input.GetButtonUp(InputManager.GetInputNameByController("CameraEscape")))
-            {
-                FocusBack();
-            }
-        }
-
         private void OnEnable()
         {
             _inputManager.OnControllerTypeChanged += OnControllerTypeChanged;
+            _gameController.OnInGameMenuClosed += OnInGameMenuClosed;
         }
 
         private void OnDisable()
         {
             _inputManager.OnControllerTypeChanged -= OnControllerTypeChanged;
+            _gameController.OnInGameMenuClosed -= OnInGameMenuClosed;
         }
 
         public void Escape()
@@ -123,11 +118,15 @@ namespace TechSupport
             {
                 SystemSwitch(SurveillanceMode.Grid);
             }
+            else
+            {
+                FocusBack();
+            }
         }
 
         public void Focus()
         {
-            if (_gameController && _gameController.IsGameMenuOpen) return;
+            if (_gameController && (_gameController.IsGameMenuOpen || _gameController.IsEndGameMenuOpen)) return;
             if (mode == SurveillanceMode.Grid)
             {
                 SurveillanceCamera selected;
@@ -178,10 +177,6 @@ namespace TechSupport
             }*/
         }
 
-        private void HideGeneralInformation(bool hide)
-        {
-            //_informationsSystem.GetInformationDisplay().gameObject.SetActive(!hide);
-        }
 
         private void ActivateGridInterface(bool activate)
         {
@@ -207,14 +202,14 @@ namespace TechSupport
             {
                 _exitMethods[mode]?.Invoke();
             }
-            _informationsSystem.ActvivateInformation(newMode == SurveillanceMode.Focused);
+            // TODO: Uncomment if the information must be hide
+            // _informationsSystem.ActivateInformation(newMode == SurveillanceMode.Focused);
             _onSwitchMethods[mode = newMode]?.Invoke();
             OnModeSwitched?.Invoke();
         }
 
         private void ExitFullScreen()
         {
-            tabulationIndicationButton.SetActive(false);
             _fullScreenSystem.EscapeFullScreen();
         }
 
@@ -224,7 +219,7 @@ namespace TechSupport
             _eventSystem.SetSelectedGameObject(null);
             
             ActivateGridInterface(false);
-            HideGeneralInformation(true);
+            _gridIsOpened = false;
 
         }
 
@@ -232,6 +227,7 @@ namespace TechSupport
         {
             EnableAll(true);
             ActivateGridInterface(true);
+            _gridIsOpened = true;
             if (_currentController == Inputs.Controller.Playstation || _currentController == Inputs.Controller.Xbox)
             {
                 _eventSystem.SetSelectedGameObject(null);
@@ -241,14 +237,12 @@ namespace TechSupport
             {
                 _eventSystem.SetSelectedGameObject(null);
             }
-            HideGeneralInformation(false);
             _gridSystem.Grid(cameras.Select(input => input.items.GetCamera()));
         }
 
         private void OnFullScreen()
         {
             EnableAll(false);
-            tabulationIndicationButton.SetActive(true);
             _fullScreenSystem.RenderFullScreen();
         }
 
@@ -275,6 +269,14 @@ namespace TechSupport
                 _eventSystem.SetSelectedGameObject(null);
             }
             _currentController = newController;
+        }
+
+        private void OnInGameMenuClosed()
+        {
+            if (_gridIsOpened)
+            {
+                OnGrid();
+            }
         }
 
         #endregion

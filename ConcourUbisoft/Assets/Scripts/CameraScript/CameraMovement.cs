@@ -5,6 +5,7 @@ using System.Linq;
 using Photon.Voice;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class CameraMovement : MonoBehaviour
 {
@@ -25,9 +26,14 @@ public class CameraMovement : MonoBehaviour
     private CharacterControl _characterControl = null;
     private GameController _gameController = null;
 
+    public bool invetedY { get; set; } = false;
+
     private void Awake()
     {
         _gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
+        invetedY = _gameController.invertedY;
+        _gameController.changeInverted.AddListener(changeInvertY);
+        
         _characterControl = playerBody.GetComponent<CharacterControl>();
 
         mouseXAccumulator = transform.rotation.eulerAngles.y;
@@ -61,13 +67,21 @@ public class CameraMovement : MonoBehaviour
     {
         float mouseX = Input.GetAxisRaw("Mouse X") *mouseSensitivityX;
         float mouseY = Input.GetAxisRaw("Mouse Y") * mouseSensitivityY;
+        if (invetedY)
+            mouseY *= -1;
         
-        float controllerX_PS = Input.GetAxis("RightJoystickHorizontalPS")*controllerSensitivityX;
-        float controllerY_PS = Input.GetAxis("RightJoystickVerticalPS")*controllerSensitivityY;
-        float controllerX_XBO = Input.GetAxis("RightJoystickHorizontalXBO")*controllerSensitivityX;
-        float controllerY_XBO = Input.GetAxis("RightJoystickVerticalXBO") * controllerSensitivityY;
+        float controllerX_PS = Mathf.Pow(Input.GetAxis("RightJoystickHorizontalPS")*controllerSensitivityX, 3);
+        float controllerY_PS = Mathf.Pow(Input.GetAxis("RightJoystickVerticalPS")*controllerSensitivityY, 3);
+        if (invetedY)
+            controllerY_PS *= -1;
         
-        if (joysticks.Contains("Controller (Xbox One For Windows)"))
+        float controllerX_XBO = Mathf.Pow(Input.GetAxis("RightJoystickHorizontalXBO")*controllerSensitivityX, 3);
+        float controllerY_XBO = Mathf.Pow(Input.GetAxis("RightJoystickVerticalXBO") * controllerSensitivityY, 3);
+        if (invetedY)
+            controllerY_XBO *= -1;
+        
+        
+        if ((joysticks.Contains("Controller (Xbox One For Windows)"))&& !_gameController.IsEndGameMenuOpen)
         {
             controllerYAccumulator -= controllerY_XBO;
             controllerXAccumulator += controllerX_XBO;
@@ -80,7 +94,7 @@ public class CameraMovement : MonoBehaviour
 
             //playerBody.MoveRotation(Quaternion.Euler(playerBody.rotation.x,controllerXAccumulator,playerBody.rotation.z));
         }
-        else if (joysticks.Contains("Wireless Controller"))
+        else if (joysticks.Contains("Wireless Controller") && !_gameController.IsEndGameMenuOpen)
         {
             controllerYAccumulator -= controllerY_PS;
             controllerXAccumulator += controllerX_PS;
@@ -93,7 +107,7 @@ public class CameraMovement : MonoBehaviour
             // playerBody.MoveRotation(Quaternion.Euler(playerBody.rotation.x,controllerXAccumulator,playerBody.rotation.z));
             //transform.rotation = Quaternion.Slerp(playerBody.rotation, Quaternion.Euler(playerBody.rotation.x, controllerXAccumulator, playerBody.rotation.z), cameraRotationSmoothingSpeed);
         }
-        else
+        else if(!_gameController.IsEndGameMenuOpen)
         {
             mouseXAccumulator += mouseX;
             float previousMouseY = mouseYAccumulator;
@@ -105,5 +119,10 @@ public class CameraMovement : MonoBehaviour
             //transform.rotation = (Quaternion.Slerp(transform.rotation,Quaternion.Euler(transform.rotation.x,mouseXAccumulator, transform.rotation.z),cameraRotationSmoothingSpeed));
            
         }
+    }
+
+    private void changeInvertY()
+    {
+        invetedY = _gameController.invertedY;
     }
 }

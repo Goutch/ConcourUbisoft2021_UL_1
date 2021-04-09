@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using ExitGames.Client.Photon.StructWrapping;
+using Inputs;
 using JetBrains.Annotations;
 using Other;
 using TechSupport.Informations;
@@ -60,6 +61,7 @@ public class Level1Controller : MonoBehaviour , LevelController
     [SerializeField] private float cameraShakeDurationSeconds = 0.2f;
     [Tooltip("Duration (Seconds) before next required item is spawned.")]
     [SerializeField] private float delayBeforeNextRequiredItem = 3f;
+    [SerializeField] private AudioSource conveyorAudioSource = null;
     
 
     private float conveyorOperatingSpeed;
@@ -77,7 +79,6 @@ public class Level1Controller : MonoBehaviour , LevelController
     
     public event Action<float> OnTimeChanged;
     public event Action<float> OnBonusTime;
-
     public event Action<float> OnWarning;
 
     private void Awake()
@@ -115,6 +116,8 @@ public class Level1Controller : MonoBehaviour , LevelController
         FurnaceController.WhenFurnaceConsumeWrong.AddListener(ShakeCamera);
         FurnaceController.CheckItemOffList += UpdateSpriteColorInList;
         FurnaceController.WhenFurnaceConsumeRight.AddListener(OnCorrectItemDropped);
+        FurnaceController.OnFirstSuccessfulItemDropped += OnFirstCorrectItemDropped;
+        FurnaceController.OnFirstWrongItemDropped += OnFirstWrongItemDropped;
         InteriorConveyorSpawner.requiredItemHasSpawned += SpawnNextRequiredItem;
         ExteriorConveyorSpawner.requiredItemHasSpawned += SpawnNextRequiredItem;
     }
@@ -126,6 +129,8 @@ public class Level1Controller : MonoBehaviour , LevelController
         FurnaceController.WhenFurnaceConsumeWrong.RemoveListener(ShakeCamera);
         FurnaceController.CheckItemOffList -= UpdateSpriteColorInList;
         FurnaceController.WhenFurnaceConsumeRight.RemoveListener(OnCorrectItemDropped);
+        FurnaceController.OnFirstSuccessfulItemDropped -= OnFirstCorrectItemDropped;
+        FurnaceController.OnFirstWrongItemDropped -= OnFirstWrongItemDropped;
         InteriorConveyorSpawner.requiredItemHasSpawned -= SpawnNextRequiredItem;
         ExteriorConveyorSpawner.requiredItemHasSpawned -= SpawnNextRequiredItem;
     }
@@ -154,6 +159,8 @@ public class Level1Controller : MonoBehaviour , LevelController
         Debug.Log("ConveyorSpeed Max");
         StartCoroutine(SpawnFreshItems(FastItemSpawningTimeSeconds));
         StartCoroutine(StartLevelDialog(2));
+
+        //FinishLevel();
     }
 
     private void InitiateNextSequence()
@@ -244,15 +251,23 @@ public class Level1Controller : MonoBehaviour , LevelController
     {
         imageList.Clean();
         StartCoroutine(waitForItemsToClear(ClearItemsTimeSeconds));
+        StartCoroutine(DisableConveyor());
         soundController.PlayLevelSequenceClearedSuccessSound();
         FurnaceController.enabled = false;
         soundController.StopAreaMusic();
+        conveyorAudioSource.Stop();
         InteriorConveyorSpawner.gameObject.SetActive(false);
         ExteriorConveyorSpawner.gameObject.SetActive(false);
         yield return null;
         _dialogSystem.StartDialog("Area01_end");
     }
-    
+
+    IEnumerator DisableConveyor()
+    {
+        yield return new WaitForSeconds(ClearItemsTimeSeconds*2);
+        SetConveyorSpeed(0,0);
+    }
+
     IEnumerator StartCameraShake(float duration)
     {
         cameraMustShake = true;
@@ -265,13 +280,14 @@ public class Level1Controller : MonoBehaviour , LevelController
     IEnumerator StartLevelDialog(float waitDuration)
     {
         yield return new WaitForSeconds(waitDuration);
+        Debug.Log("Controller Type First Dialog: " + InputManager.GetController());
         _dialogSystem.StartDialog("Area01_start");
     }
 
     private void UpdateSpriteColorInList()
     {
-        imageList.UpdateSpriteColor(currentListIndex, Color.black);
         currentListIndex++;
+        imageList.SelectItem(currentListIndex);
     }
 
     private void SetConveyorSpeed(float interiorConveyorSpeed, float exteriorConveyorSpeed)
@@ -338,5 +354,15 @@ public class Level1Controller : MonoBehaviour , LevelController
     {
         soundController.PlayLevelPartialSequenceSuccessSound();
         actualDelayNextRequiredItem += 1;
+    }
+
+    private void OnFirstCorrectItemDropped()
+    {
+        _dialogSystem.StartSingleLine("Area01_first_success","green");
+    }
+
+    private void OnFirstWrongItemDropped()
+    {
+        _dialogSystem.StartSingleLine("Area01_first_failure","red");
     }
 }

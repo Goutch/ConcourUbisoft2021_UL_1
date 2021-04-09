@@ -35,12 +35,13 @@ public class MenuController : MonoBehaviour
     [SerializeField] private GameObject _roomFirstSelected;
     [SerializeField] private GameObject _roomBackFirstSelected;
     [SerializeField] private GameObject _lobbyPanelCreateButton;
-    [SerializeField] private GameObject _lobbyPanelJoinButton;
     [SerializeField] private GameObject _lobbyPanelRoomNameInputField;
     [SerializeField] private GameObject _lobbyPanelBackButton;
     [SerializeField] private GameObject _lobbyListHeader;
     [SerializeField] private GameObject _creditMenu;
     [SerializeField] private GameObject _creditFirstSelected;
+    [SerializeField] private GameObject _creditBackFirstSelected;
+    [SerializeField] private GameObject _speakingIcon = null;
 
     private NetworkController _networkController = null;
     private GameController _gameController = null;
@@ -58,7 +59,6 @@ public class MenuController : MonoBehaviour
         _loadScreenMenuController.Show("Joining Lobby...");
         _networkController.JoinLobby();
         _lobbyPanelCreateButton.SetActive(true);
-        _lobbyPanelJoinButton.SetActive(true);
         _lobbyPanelRoomNameInputField.SetActive(true);
         _lobbyPanelBackButton.SetActive(true);
         _lobbyListHeader.SetActive(true);
@@ -136,39 +136,6 @@ public class MenuController : MonoBehaviour
             Debug.LogWarning(_beforeCredit);
             switch (_beforeCredit)
             {
-                case Menus.Credits:
-                    if (_currentController == Controller.Playstation || _currentController == Controller.Xbox)
-                    {
-                        _eventSystem.SetSelectedGameObject(null);
-                        _eventSystem.SetSelectedGameObject(_creditFirstSelected);
-                    }
-                    break;
-                case Menus.Lobby:
-                    _lobbyMenu.SetActive(true);
-                    if (_currentController == Controller.Playstation || _currentController == Controller.Xbox)
-                    {
-                        _eventSystem.SetSelectedGameObject(null);
-                        _eventSystem.SetSelectedGameObject(_lobbyFirstSelected);
-                    }
-                    break;
-                case Menus.Options:
-                    _optionMenu.SetActive(true);
-                    if (_currentController == Controller.Playstation || _currentController == Controller.Xbox)
-                    {
-                        _eventSystem.SetSelectedGameObject(null);
-                        _eventSystem.SetSelectedGameObject(_optionsFirstSelected);
-                    }
-                    break;
-                case Menus.Room:
-                    _roomMenu.SetActive(true);
-                    if (_currentController == Controller.Playstation || _currentController == Controller.Xbox)
-                    {
-                        _eventSystem.SetSelectedGameObject(null);
-                        _eventSystem.SetSelectedGameObject(_roomFirstSelected);
-                    }
-                    break;
-                case Menus.InGame:
-                    break;
                 case Menus.MainMenu:
                     if (!_gameController.IsGameStart)
                     {
@@ -176,7 +143,7 @@ public class MenuController : MonoBehaviour
                         if (_currentController == Controller.Playstation || _currentController == Controller.Xbox)
                         {
                             _eventSystem.SetSelectedGameObject(null);
-                            _eventSystem.SetSelectedGameObject(_menuFirstSelected);
+                            _eventSystem.SetSelectedGameObject(_creditBackFirstSelected);
                         }
                     }
                     else
@@ -200,7 +167,7 @@ public class MenuController : MonoBehaviour
         _gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
         _menuSoundController = GameObject.FindGameObjectWithTag("SoundController").GetComponent<SoundController>();
         _inputManager = GameObject.FindWithTag("InputManager")?.GetComponent<InputManager>();
-        //_menuSoundController.PlayMenuSong();
+        _menuSoundController.PlayMenuSong();
     }
 
     private void Start()
@@ -284,6 +251,7 @@ public class MenuController : MonoBehaviour
     private void OnLeftRoom()
     {
         _lobbyMenu.SetActive(true);
+        _speakingIcon.SetActive(false);
         _currentMenu = Menus.Lobby;
         if (_currentController == Controller.Playstation || _currentController == Controller.Xbox)
         {
@@ -303,13 +271,13 @@ public class MenuController : MonoBehaviour
         _lobbyMenu.SetActive(true);
         _currentMenu = Menus.Lobby;
         _lobbyPanelCreateButton.SetActive(true);
-        _lobbyPanelJoinButton.SetActive(true);
         _lobbyPanelRoomNameInputField.SetActive(true);
         _lobbyPanelBackButton.SetActive(true);
         _lobbyListHeader.SetActive(true);
     }
     private void OnLoadGame()
     {
+        _menuSoundController.StopMenuSong();
         _loadScreenMenuController.Show("Loading Level...");
         _lobbyMenu.SetActive(false);
         _roomMenu.SetActive(false);

@@ -1,22 +1,51 @@
+using System;
 using System.Linq;
+using Photon.Pun;
 using UnityEngine;
 
 namespace Arm
 {
 	public class MagnetController : MonoBehaviour
 	{
+		public delegate void OnMagnetActiveChangeHandler();
+
+		public event OnMagnetActiveChangeHandler OnMagnetActiveChange;
+
+		public delegate void OnGrabStateChangeHandler();
+
+		public event OnGrabStateChangeHandler OnGrabStateChange;
 		[SerializeField] private float pullForce = 10f;
 		[SerializeField] private Transform magnetPullPoint;
 		[SerializeField] private GameController.Role _owner = GameController.Role.SecurityGuard;
 		[SerializeField] private GameController.Role _outlineViewer = GameController.Role.Technician;
 		[SerializeField] private MagnetSound _magnetSound = null;
 
+
 		private MagnetTrigger _magnetTrigger;
 		private Pickable _currentPickable = null;
 		private bool _grabbed = false;
 		private NetworkController _networkController = null;
+		private bool _magnetActive = false;
 
-		public bool MagnetActive { get; set; }
+		public bool Grabbed
+		{
+			get => _grabbed;
+			set
+			{
+				_grabbed = value;
+				OnGrabStateChange?.Invoke();
+			}
+		}
+
+		public bool MagnetActive
+		{
+			get => _magnetActive;
+			set
+			{
+				_magnetActive = value;
+				OnMagnetActiveChange?.Invoke();
+			}
+		}
 
 		private void Awake()
 		{
@@ -37,13 +66,13 @@ namespace Arm
 					{
 						MovePickableToMagnet();
 					}
-					else if (_grabbed)
+					else if (Grabbed)
 					{
 						ReleasePickable();
 					}
 				}
 
-				_magnetSound.IsOn = MagnetActive;
+				_magnetSound.IsOn = MagnetActive && !_grabbed;
 			}
 
 			if (_outlineViewer == localRole)
@@ -55,11 +84,22 @@ namespace Arm
 			}
 		}
 
+		private void OnCollisionEnter(Collision other)
+		{
+			if (_owner == _networkController.GetLocalRole())
+			{
+				if (_currentPickable && !Grabbed && MagnetActive)
+				{
+					GrabPickable();
+				}
+			}
+		}
+
 		private void OnCollisionStay(Collision collision)
 		{
 			if (_owner == _networkController.GetLocalRole())
 			{
-				if (_currentPickable && !_grabbed && MagnetActive)
+				if (_currentPickable && !Grabbed && MagnetActive)
 				{
 					GrabPickable();
 				}
@@ -71,15 +111,14 @@ namespace Arm
 			_currentPickable.OnGrab();
 			_currentPickable.Rigidbody.velocity = Vector3.zero;
 			_currentPickable.transform.parent = this.transform;
-
-			_grabbed = true;
+			Grabbed = true;
 		}
 
 		private void ReleasePickable()
 		{
 			_currentPickable.OnRelease();
 			_currentPickable = null;
-			_grabbed = false;
+			Grabbed = false;
 		}
 
 		private void MovePickableToMagnet()

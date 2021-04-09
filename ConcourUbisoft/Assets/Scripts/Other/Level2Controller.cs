@@ -13,6 +13,7 @@ using Random = UnityEngine.Random;
 public class Level2Controller : MonoBehaviour, LevelController
 {
     [SerializeField] private Color[] _possibleColors = null;
+    [SerializeField] private Conveyor _conveyor = null;
     [SerializeField] private GameObject[] _transportablesPrefab = null;
     [SerializeField] private SpawnObjectOnLineConveyor[] _spawners = null;
     [SerializeField] private FurnaceController _furnace = null;
@@ -27,6 +28,10 @@ public class Level2Controller : MonoBehaviour, LevelController
     [SerializeField] private float _delayInverse = 10;
     [SerializeField] private Canvas _information = null;
     [SerializeField] private Font _font;
+    [SerializeField] private GameObject _checkPrefabs;
+    [SerializeField] private Material _blurMaterial;
+    [SerializeField] private Material _fontMaterial;
+    [SerializeField] private Sprite _questionSprite;
     [SerializeField] private GameController.Role _emissionVisibleBy = GameController.Role.None;
     [SerializeField] private float LevelMaxAmountOfTimeSeconds = 120;
     [SerializeField] private float TimeLeftIfFirstSequenceFailed = 120;
@@ -37,6 +42,10 @@ public class Level2Controller : MonoBehaviour, LevelController
     [SerializeField] private TimerController _timerController;
     [SerializeField] private GameObject TimerPanel;
     [SerializeField] private List<float> TimeLeftWhenWarningPlays;
+    [SerializeField] private CameraEffectDisabled _cameraEffectDisabled = null;
+    [SerializeField] private float _durationCameraEffectDisabled = 2.0f;
+    [Tooltip("Number of times each sequence item is spawned")]
+    [SerializeField] private int _requiredItemsSpawningMultiplier;
 
     [Tooltip("Intensity of the AreaCamera Shake Effect")]
     [SerializeField] private float cameraShakeForce = 0.3f;
@@ -50,6 +59,8 @@ public class Level2Controller : MonoBehaviour, LevelController
     private Coroutine timerCoroutine;
     private int _nextWarningIndex;
     
+    [SerializeField] private AudioSource conveyorAudioSource = null;
+
     //TODO respawn items when sequence failed.
     
     public event Action<float> OnTimeChanged;
@@ -74,35 +85,45 @@ public class Level2Controller : MonoBehaviour, LevelController
 
     private ImageLayout _imageList;
     private List<Sprite> _itemSprites = new List<Sprite>();
-    private System.Random _random = new System.Random(0);
+    private System.Random _random;
     private SoundController _soundController;
     private Vector3 _cameraOriginalPosition;
     private int _currentListIndex;
     private NetworkController _networkController = null;
     private float _lastTimeInverseControl = 0;
+    private PhotonView _photonView = null;
+    private GameController _gameController = null;
 
+    private List<Tuple<Vector3, Quaternion, Pickable>> _spawnedPickable = new List<Tuple<Vector3, Quaternion, Pickable>>();
 
     private void Awake()
     {
+        _gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
+        _random = new System.Random(_gameController.Seed);
+
         _soundController = GameObject.FindGameObjectWithTag("SoundController").GetComponent<SoundController>();
         _networkController = GameObject.FindGameObjectWithTag("NetworkController").GetComponent<NetworkController>();
         _cameraOriginalPosition = AreaCamera.transform.position;
         _dialogSystem = GameObject.FindGameObjectWithTag("DialogSystem").GetComponent<DialogSystem>();
+        _photonView = GetComponent<PhotonView>();
+    }
 
+    public void StartLevel()
+    {
         _furnace.GenerateNewColorSequences(_possibleColors);
 
         if (_networkController.GetLocalRole() == GameController.Role.SecurityGuard)
         {
             SpawnObjects();
         }
-    }
-
-    public void StartLevel()
-    {
         _soundController.PlayArea2Music();
         _techUI.GetList().Clean();
 
         _imageList = new GameObject().AddComponent<ImageLayout>();
+        _imageList.SetBlurMaterial(_blurMaterial);
+        _imageList.SetFontMaterial(_fontMaterial);
+        _imageList.SetQuestion(_questionSprite);
+        _imageList.SetCheckImage(_checkPrefabs);
         _imageList.GetComponent<RectTransform>().SetParent(_information.transform);
         _imageList.Font = _font;
         _imageList.TextOffset = -75.0f;
@@ -127,7 +148,7 @@ public class Level2Controller : MonoBehaviour, LevelController
 
     private void StartLevelTimer()
     {
-        _dialogSystem.StartDialog("Area02_start_timer");
+        _dialogSystem.StartSingleLine("Area02_start_timer");
         _nextWarningIndex = 0;
         timerCoroutine = StartCoroutine(StartTimer());
         TimerPanel.SetActive(true);
@@ -136,18 +157,53 @@ public class Level2Controller : MonoBehaviour, LevelController
 
     public void SpawnObjects()
     {
-        List<Bounds> solutions = new List<Bounds>();
-        foreach(SpawnObjectOnLineConveyor spawner in _spawners)
-        {
-            solutions.AddRange(spawner.GetSpawnPosition());
-        }
-        
-        SpawnSequences(solutions);
+        _photonView.RPC("CameraEffect", RpcTarget.All);
 
-        foreach (Bounds solution in solutions)
+        if(_spawnedPickable.Count == 0)
         {
-            SpawnObject(solution, _possibleColors[_random.Next(0, _possibleColors.Length)]);
+            List<Bounds> solutions = new List<Bounds>();
+            foreach (SpawnObjectOnLineConveyor spawner in _spawners)
+            {
+                solutions.AddRange(spawner.GetSpawnPosition());
+            }
+
+            SpawnSequences(solutions);
+
+            foreach (Bounds solution in solutions)
+            {
+                SpawnObject(solution, _possibleColors[_random.Next(0, _possibleColors.Length)]);
+            }
         }
+        else
+        {
+            foreach(Tuple<Vector3, Quaternion, Pickable> tuple in _spawnedPickable)
+            {
+                if(!tuple.Item3.IsGrabbed)
+                {
+                    tuple.Item3.SetActiveNetwork(true);
+                    tuple.Item3.transform.position = tuple.Item1;
+                    tuple.Item3.transform.rotation = tuple.Item2;
+                    tuple.Item3.SetConsumedNetwork(false);
+                }
+            }
+        }
+
+    }
+
+    [PunRPC]
+    private void CameraEffect()
+    {
+        if(_networkController.GetLocalRole() == GameController.Role.Technician)
+        {
+            _cameraEffectDisabled.Enable();
+            StartCoroutine(DisableCameraEffectSpawnObject(_durationCameraEffectDisabled));
+        }
+    }
+
+    private IEnumerator DisableCameraEffectSpawnObject(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        _cameraEffectDisabled.Disable();
     }
 
     private void SpawnObject(Bounds solution, Color color)
@@ -159,6 +215,7 @@ public class Level2Controller : MonoBehaviour, LevelController
         pickable.Color = color;
         pickable.Furnace = _furnace;
         pickable.SetEmissionVisibleBy(_emissionVisibleBy);
+        _spawnedPickable.Add(new Tuple<Vector3, Quaternion, Pickable>(solution.center, randomRotation, pickable));
     }
 
     private void SpawnSequenceObject(Bounds solution, Color color, Other.PickableType type)
@@ -173,6 +230,7 @@ public class Level2Controller : MonoBehaviour, LevelController
                 pickable.Color = color;
                 pickable.Furnace = _furnace;
                 pickable.SetEmissionVisibleBy(_emissionVisibleBy);
+                _spawnedPickable.Add(new Tuple<Vector3, Quaternion, Pickable>(solution.center, randomRotation, pickable));
                 break;
             }
         }
@@ -182,23 +240,39 @@ public class Level2Controller : MonoBehaviour, LevelController
     {
         _levelInProgress = false;
         TimerPanel.SetActive(false);
+        StartCoroutine(DisableConveyor());
         _soundController.PlayLevelSequenceClearedSuccessSound();
         _imageList.Clean();
         _soundController.StopAreaMusic();
         _dialogSystem.StartDialog("Area02_end");
+        conveyorAudioSource.Stop();
+        if(_armController.IsInversedX())
+        {
+            _armController.InverseX();
+        }
+        if (_armController.IsInversedZ())
+        {
+            _armController.InverseZ();
+        }
+    }
+
+    private IEnumerator DisableConveyor()
+    {
+        yield return new WaitForSeconds(5);
+        _conveyor.SetSpeed(0);
     }
 
     public void InitiateNextSequence()
     {
         if(_furnace.SucceedSequences == 1 && !_currentSequenceFailed)
         {
-            _dialogSystem.StartDialog("Area02_first_sequence_done");
+            _dialogSystem.StartSingleLine("Area02_first_sequence_done");
             _armController.InverseX();
             _armController.InverseZ();
         }
         else if (_furnace.SucceedSequences ==2 && !_currentSequenceFailed)
         {
-            _dialogSystem.StartDialog("Area02_second_sequence_done");
+            _dialogSystem.StartSingleLine("Area02_second_sequence_done");
         }
         
         if (!_currentSequenceFailed)
@@ -269,7 +343,7 @@ public class Level2Controller : MonoBehaviour, LevelController
 
     private void Update()
     {
-        if (_furnace.SucceedSequences >= 2)
+        if (_levelInProgress && _furnace.SucceedSequences >= 2)
         {
             if(Time.time - _lastTimeInverseControl > _delayInverse)
             {
@@ -283,12 +357,13 @@ public class Level2Controller : MonoBehaviour, LevelController
         {
             AreaCamera.transform.position = _cameraOriginalPosition + Random.insideUnitSphere * cameraShakeForce;
         }
+
     }
 
     private void UpdateSpriteColorInList()
     {
-        _imageList.UpdateSpriteColor(_currentListIndex, Color.black);
         _currentListIndex++;
+        _imageList.SelectItem(_currentListIndex);
     }
 
     private void setItemsImageList()
@@ -321,21 +396,25 @@ public class Level2Controller : MonoBehaviour, LevelController
                     break;
             }
         }
+
         _imageList.CreateLayout(_itemSprites, sequenceOfColor.ColorsSequence);
     }
 
     private void SpawnSequences(List<Bounds> solutions)
     {
-        if (solutions.Count >= _furnace.GetItemCount())
+        if (solutions.Count >= _furnace.GetItemCount()*_requiredItemsSpawningMultiplier)
         {
             FurnaceController.SequenceOfColor[] sequences = _furnace.GetAllSequences();
             foreach (var sequence in sequences)
             {
                 for (int i = 0; i < sequence.ColorsSequence.Length; i++)
                 {
-                    int solutionIndex = _random.Next(0, solutions.Count);
-                    SpawnSequenceObject(solutions[solutionIndex],sequence.ColorsSequence[i],sequence.types[i]);
-                    solutions.RemoveAt(solutionIndex);
+                    for (int j = 0; j < _requiredItemsSpawningMultiplier; j++)
+                    {
+                        int solutionIndex = _random.Next(0, solutions.Count);
+                        SpawnSequenceObject(solutions[solutionIndex],sequence.ColorsSequence[i],sequence.types[i]);
+                        solutions.RemoveAt(solutionIndex);
+                    }
                 }
             }
         }
@@ -380,6 +459,10 @@ public class Level2Controller : MonoBehaviour, LevelController
                     break;
         };
         InitiateNextSequence();
+        if (_networkController.GetLocalRole() == GameController.Role.SecurityGuard)
+        {
+            SpawnObjects();
+        }
         timerCoroutine = StartCoroutine(StartTimer());
     }
 

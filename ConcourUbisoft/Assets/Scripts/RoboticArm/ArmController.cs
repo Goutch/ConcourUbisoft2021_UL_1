@@ -19,6 +19,8 @@ namespace Arm
 		[SerializeField] private ArmSound _armSound = null;
 		[SerializeField] private Bounds boundingBox;
         [SerializeField] private ParticleSystem[] _particleSystems = null;
+        [SerializeField] private AudioSource audioSource;
+        [SerializeField] private AudioClip electricityContinueSound;
 
 		public float ControlSpeed => controlSpeed;
 		public Transform Head => armIKSolver.transform;
@@ -38,20 +40,22 @@ namespace Arm
         private bool _inversedZ = false;
         private bool _inversed => _inversedX || _inversedZ;
 
+        private float _magn = 0.0f;
+
 		private void Awake()
 		{
             _networkController = GameObject.FindGameObjectWithTag("NetworkController").GetComponent<NetworkController>();
 			_photonView = GetComponentInParent<PhotonView>();
-
-            if (_networkController.GetLocalRole() == _owner && !_photonView.IsMine)
-            {
-                _photonView.RequestOwnership();
-            }
         }
 
 		private void Start()
 		{
-			boundingBox.center = this.transform.position + boundingBox.center;
+            if (_networkController.GetLocalRole() == _owner && !_photonView.IsMine)
+            {
+                _photonView.TransferOwnership(PhotonNetwork.LocalPlayer);
+            }
+
+            boundingBox.center = this.transform.position + boundingBox.center;
 			initialialized = true;
 			maxRange = armIKSolver.TotalLength - 0.01f;
 			ArmTarget = armIKSolver.Target;
@@ -60,33 +64,29 @@ namespace Arm
 
 		void Update()
 		{
-			ClampTarget();
+            ClampTarget();
 			FaceTarget();
-
-            if (_networkController.GetLocalRole() == _owner && !_photonView.IsMine)
-            {
-                _photonView.RequestOwnership();
-            }
 
             if (_photonView.IsMine)
 			{
 				if (translation.magnitude >= float.Epsilon)
 				{
 					ArmTarget.transform.Translate(Time.deltaTime * aligment.MultiplyVector(translation.normalized) * controlSpeed);
-					_armSound.Volume = 0.3f; //translate.magnitude / (ControlSpeed * Time.deltaTime);
+					_armSound.Volume = _magn;
+					_magn += Time.deltaTime;
 				}
 				else
 				{
+					_magn = 0.0f;
 					_armSound.Volume = 0;
 				}
 
 				translation = Vector3.zero;
 			}
-
-			if (!_photonView.IsMine)
-			{
-				ArmTarget.position = Vector3.MoveTowards(ArmTarget.position, newPosition, Time.deltaTime * controlSpeed);
-			}
+            else
+            {
+                ArmTarget.position = Vector3.MoveTowards(ArmTarget.position, newPosition, Time.deltaTime * controlSpeed);
+            }
 		}
 
 		private void FaceTarget()
@@ -130,6 +130,16 @@ namespace Arm
 			}
 		}
 
+        public bool IsInversedX()
+        {
+            return aligment.GetRow(0).x == -1;
+        }
+
+        public bool IsInversedZ()
+        {
+            return aligment.GetRow(2).z == -1;
+        }
+
         public void InverseX()
         {
             aligment.SetRow(0, aligment.GetRow(0) * -1);
@@ -141,6 +151,10 @@ namespace Arm
                     if (!particleSystem.isPlaying)
                     {
                         particleSystem.Play();
+                        audioSource.loop = true;
+                        audioSource.clip = electricityContinueSound;
+                        audioSource.volume = 0.25f;
+                        audioSource.Play();
                     }
                 }
                 else
@@ -148,6 +162,8 @@ namespace Arm
                     if (!particleSystem.isStopped)
                     {
                         particleSystem.Stop();
+                        audioSource.Stop();
+                        audioSource.loop = false;
                     }
                 }
             }
@@ -164,6 +180,10 @@ namespace Arm
                     if(!particleSystem.isPlaying)
                     {
                         particleSystem.Play();
+                        audioSource.loop = true;
+                        audioSource.clip = electricityContinueSound;
+                        audioSource.volume = 0.25f;
+                        audioSource.Play();
                     }
                 }
                 else
@@ -171,6 +191,8 @@ namespace Arm
                     if (!particleSystem.isStopped)
                     {
                         particleSystem.Stop();
+                        audioSource.Stop();
+                        audioSource.loop = false;
                     }
                 }
             }

@@ -27,6 +27,8 @@ public class FurnaceController : MonoBehaviour
     [SerializeField] private GameController.Role _owner = GameController.Role.None;
     [SerializeField] private bool _finishAfterOnce = false;
     [SerializeField] private float _destroyTime = 5f;
+    [SerializeField] private bool _destroyGameObject = true;
+    [SerializeField] private bool _spawnRobotHeads;
 
     public UnityEvent WhenFurnaceConsumedAll;
     public UnityEvent WhenFurnaceConsumeWrong;
@@ -34,23 +36,31 @@ public class FurnaceController : MonoBehaviour
     public UnityEvent WhenFurnaceConsumeAWholeSequenceWithoutFinishing;
     public event Action CheckItemOffList;
     public event Action OnFirstSuccessfulItemDropped;
+    public event Action OnFirstWrongItemDropped;
 
     private SoundController soundController;
     private PhotonView _photonView = null;
     private NetworkController _networkController = null;
+    private GameController _gameController = null;
+
     private bool _firstSuccessPlayed;
+    private bool _firstFailPlayed;
 
     public int SucceedSequences { get; private set; } = 0;
 
-    System.Random _random = new System.Random(0);
+    System.Random _random;
 
     private void Awake()
     {
+        _gameController = GameObject.FindGameObjectWithTag("GameController").GetComponent<GameController>();
+        _random = new System.Random(_gameController.Seed);
+
         SequencesOfColor = new SequenceOfColor[nbColorSequences];
         soundController = GameObject.FindGameObjectWithTag("SoundController").GetComponent<SoundController>();
         _networkController = GameObject.FindGameObjectWithTag("NetworkController").GetComponent<NetworkController>();
         _photonView = GetComponent<PhotonView>();
         _firstSuccessPlayed = false;
+        _firstFailPlayed = false;
     }
 
 
@@ -75,7 +85,14 @@ public class FurnaceController : MonoBehaviour
     private IEnumerator DestroyConsumed(Pickable pickable)
     {
         yield return new WaitForSeconds(_destroyTime);
-        PhotonNetwork.Destroy(pickable.gameObject);
+        if(_destroyGameObject)
+        {
+            PhotonNetwork.Destroy(pickable.gameObject);
+        }
+        else
+        {
+            pickable.SetActiveNetwork(false);
+        }
     }
 
     [PunRPC]
@@ -125,6 +142,11 @@ public class FurnaceController : MonoBehaviour
             }
             else
             {
+                if (!_firstFailPlayed)
+                {
+                    _firstFailPlayed = true;
+                    OnFirstWrongItemDropped?.Invoke();
+                }
                 WhenFurnaceConsumeWrong?.Invoke();
             }
         }
@@ -140,7 +162,17 @@ public class FurnaceController : MonoBehaviour
             sc.types = new Other.PickableType[currentSequenceLenght];
             for (int j = 0; j < currentSequenceLenght; j++)
             {
-                int nextType = _random.Next(0, 5);
+                int nextType = 0;
+                
+                if (_spawnRobotHeads)
+                {
+                    nextType = _random.Next(0, 5);
+                }
+                else
+                {
+                    nextType = _random.Next(1, 5);
+                }
+                
                 int nextColor = _random.Next(0, allColors.Length);
                 sc.ColorsSequence[j] = allColors[nextColor];
                 sc.types[j] = (Other.PickableType)nextType;
